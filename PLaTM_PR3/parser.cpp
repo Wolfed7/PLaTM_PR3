@@ -6,13 +6,13 @@
 
 using namespace std;
 
-enum TypesID
-{
-   TYPE_NULL,
-   TYPE_FLOAT,
-   TYPE_INT,
-   TYPE_CHAR
-};
+//enum TypesID
+//{
+//   TYPE_NULL,
+//   TYPE_FLOAT,
+//   TYPE_INT,
+//   TYPE_CHAR
+//};
 
 // -----------------------------------------------------------
 // PARSE TABLE
@@ -35,11 +35,6 @@ ParseTable::ParseTable(string filename)
 
       while (getline(lineStream, word, '\t'))
          words.push_back(word);
-
-      if (words[0] == "94")
-      {
-         int a = 0;
-      }
 
       ParseTableRow row;
 
@@ -212,19 +207,9 @@ void Parser::Parse(vector<Token> tokens)
    size_t currentRow = 1;
    size_t currentTokenNumber = 0;
    size_t currentLine = 1;
-   TypesID tempTypeID = TYPE_NULL;
+   int tempTypeID = None;
 
-   // For RGZ
-   enum NumberType
-   {
-      NUMBER_INTEGER,
-      NUMBER_FLOAT
-   };
-
-   NumberType rExpr = NUMBER_INTEGER;
-   NumberType lExpr = NUMBER_INTEGER;
-
-   outputBuf.push({ 100, 100 });
+   outputBuf.push({ 300, 300 });
 
    for (auto &token : tokens)
    {
@@ -240,11 +225,6 @@ void Parser::Parse(vector<Token> tokens)
 
          //cout << row.jump_ << " |\t" << currentRow << " &\t" << tokenStr;
          //getchar();
-
-         if (currentRow == 27)       tempTypeID = TYPE_INT;
-         else if (currentRow == 28)  tempTypeID = TYPE_CHAR;
-         else if (currentRow == 29)  tempTypeID = TYPE_FLOAT;
-         else if (currentRow == 23)  tempTypeID = TYPE_NULL;
 
          if (row.stack_)
          {
@@ -318,62 +298,40 @@ void Parser::Parse(vector<Token> tokens)
             {
             case DynamicConstants:
                constant = tables.SearchOnDynamic(pair<int, int>({ DynamicConstants, token.rowID }));
-
-               if (constant->Type == TYPE_FLOAT)
-                  rExpr = NUMBER_FLOAT;
-
                break;
 
             case DynamicVariables:
                var = tables.SearchOnDynamic(pair<int, int>({ DynamicVariables, token.rowID }));
 
-               if (var->Type == TYPE_NULL)
-                  if (tempCurrentRow == 30)
-                  {
-                     var->Type = tempTypeID;
-                  }
-                  else
-                  {
-                     ParserError err = { "Неопределённая переменная", (int)currentLine };
-                     PushError(err);
-                     return;
-                  }
-               else
-                  if (tempCurrentRow == 30)
-                  {
-                     ParserError err = { "Переопределённая переменная", (int)currentLine };
-                     PushError(err);
-                     return;
-                  }
 
-               if (var->Type == TYPE_FLOAT)
-                  if (tempCurrentRow == 30 || tempCurrentRow == 47)
-                     lExpr = NUMBER_FLOAT;
-                  else
-                     rExpr = NUMBER_FLOAT;
-
+               if (var->Type == None)
+               //   if (tempCurrentRow == 25)
+               //   {
+               //      var->Type = tempTypeID;
+               //   }
+               //   else
+               //   {
+               //      ParserError err = { "Переменная не инициализирована.", (int)currentLine };
+               //      PushError(err);
+               //      return;
+               //   }
+               //else
+               //   if (tempCurrentRow == 25)
+               //   {
+               //      ParserError err = { "Множественная инициализация.", (int)currentLine };
+               //      PushError(err);
+               //      return;
+               //   }
                break;
 
             case StaticSeparators:
-               if (lExpr == NUMBER_INTEGER && rExpr == NUMBER_FLOAT)
-               {
-                  ParserError err = { "Невозможно приравнять вещественное число к целому", (int)currentLine };
-                  PushError(err);
-                  return;
-               }
-
-               lExpr = NUMBER_INTEGER;
-               rExpr = NUMBER_INTEGER;
-
                break;
 
+            // Унарный минус.
             case StaticOperators:
-               if (tempCurrentRow == 58)
+               if (tempCurrentRow == 35)
                {
-                  //tables.constants->Update("0", Char(0));
-                  //Token zero = { DynamicConstants, tables.constants->getHash("0") };
-                  cout << "checkhere" << endl;
-                  //polish.push_back(zero);
+                  // Здесь надо бы добавление в таблицу констант и польский стек... 
                }
                break;
             }
@@ -396,7 +354,7 @@ void Parser::Parse(vector<Token> tokens)
                   break;
 
                case StaticSeparators:
-                  while (outputBuf.top().tableID != 100)
+                  while (outputBuf.top().tableID != 300)
                   {
                      polish.push_back(outputBuf.top());
                      outputBuf.pop();

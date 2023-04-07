@@ -2,7 +2,8 @@ void main()
 {
    // ѕроверка токенизации присваиваний:
    int a = 1;
-   int b, c = 3;
+   int b = 9, c = 0;
+   c = 3;
    b = 2;
 
    /*
@@ -12,12 +13,21 @@ void main()
    */
     
    if (a < b)
-      c = b - a;
-   else if (a == 1)
-      c = a + b;
-   else if (a != b)
    {
-      c = a * b;
+      c = b - a;
    }
-
+   else
+   {
+      if (a == 1)
+      {
+         c = a + b;
+      }
+      else
+      {
+         if (a != b)
+         {
+            c = a * b;
+         }
+      }
+   }
 }
