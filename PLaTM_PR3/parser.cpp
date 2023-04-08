@@ -6,14 +6,6 @@
 
 using namespace std;
 
-//enum TypesID
-//{
-//   TYPE_NULL,
-//   TYPE_FLOAT,
-//   TYPE_INT,
-//   TYPE_CHAR
-//};
-
 // -----------------------------------------------------------
 // PARSE TABLE
 // -----------------------------------------------------------
@@ -208,14 +200,19 @@ void Parser::Parse(vector<Token> tokens)
    size_t currentTokenNumber = 0;
    size_t currentLine = 1;
    int tempTypeID = None;
+   int declLine = 0;
+   Variable *initVar = NULL;
+
 
    outputBuf.push({ 300, 300 });
+
+   st.push(0);
 
    for (auto &token : tokens)
    {
       string tokenStr = GetTokenStr(token);
 
-      while (tokenLineIndeces[currentLine - 1] == currentTokenNumber)
+      while (tokenLineIndeces[currentLine] == currentTokenNumber)
          currentLine++;
 
       while (true)
@@ -225,6 +222,7 @@ void Parser::Parse(vector<Token> tokens)
 
          //cout << row.jump_ << " |\t" << currentRow << " &\t" << tokenStr;
          //getchar();
+         //cout << '\n';
 
          if (row.stack_)
          {
@@ -234,6 +232,9 @@ void Parser::Parse(vector<Token> tokens)
 
          if (row.return_)
          {
+            if (st.top() == 0)
+               return;
+
             //cout << " . RETURN TO " << st.top() << endl;
             currentRow = st.top() + 1;
             st.pop();
@@ -256,28 +257,33 @@ void Parser::Parse(vector<Token> tokens)
             switch (currentRow)
             {
             case 22:
-               err.msg = "Отсутствует имя переменной";
+               err.msg = "требуется идентификатор";
                break;
 
-            case 20:
-            case 71:
-               err.msg = "Неверный баланс скобок";
+            case 26:
+               err.msg = "требуется '=' или ';'";
                break;
 
-            case 31:
-               err.msg = "Пропущена точка с запятой";
+            case 93:
+               err.msg = "требуется выражение";
                break;
 
-            case 48:
-               err.msg = "Неправильная конструкция. Возможно, вы забыли '='?";
+            case 9:
+            case 95:
+            case 102:
+               err.msg = "требуется '{'";
                break;
 
-            case 64:
-               err.msg = "Опущен операнд";
+            case 11:
+            case 97:
+            case 104:
+               err.msg = "требуется '}'";
                break;
 
-            case 70:
-               err.msg = "В скобках должно быть хоть что-то";
+            case 24:
+            case 74:
+            case 41:
+               err.msg = "требуется ';'";
                break;
 
             default:
@@ -292,8 +298,23 @@ void Parser::Parse(vector<Token> tokens)
          Variable *var;
 
          if (row.accept_) 
-         {
-            // Проверим, существует ли переменная или константа в таблицах.
+         {  
+            //--------------------------------//
+            // Проверка семантических ошибок. //
+            //--------------------------------//
+
+            if (tempCurrentRow == 22)
+            {
+               declLine = currentLine;
+            }
+
+            // Если мы на 30 по таблице, то переменная будет проинициализирована.
+            // В ином случае об ошибке сообщит синтаксический анализ.
+            if (tempCurrentRow == 30 && initVar != NULL && initVar->Type != None)
+            {
+               initVar->IsInitialised = true;
+            }
+
             switch (token.tableID) 
             {
             case DynamicConstants:
@@ -303,25 +324,52 @@ void Parser::Parse(vector<Token> tokens)
             case DynamicVariables:
                var = tables.SearchOnDynamic(pair<int, int>({ DynamicVariables, token.rowID }));
 
+               if (tempCurrentRow == 25)
+               {
+                  initVar = var;
+               }
 
                if (var->Type == None)
-               //   if (tempCurrentRow == 25)
-               //   {
-               //      var->Type = tempTypeID;
-               //   }
-               //   else
-               //   {
-               //      ParserError err = { "Переменная не инициализирована.", (int)currentLine };
-               //      PushError(err);
-               //      return;
-               //   }
-               //else
-               //   if (tempCurrentRow == 25)
-               //   {
-               //      ParserError err = { "Множественная инициализация.", (int)currentLine };
-               //      PushError(err);
-               //      return;
-               //   }
+               {
+                  if (tempCurrentRow == 25 || (tempCurrentRow == 75 && declLine == currentLine))
+                  {
+                     var->Type = Int;
+                  }
+                  else
+                  {
+                     ParserError err = { GetRealTokenStr(token) + ": идентификатор не определён", (int)currentLine };
+                     PushError(err);
+                     return;
+                  }
+               }
+               else if (var->Type == Int)
+               {
+                  if (tempCurrentRow == 25)
+                  {
+                     ParserError err = { GetRealTokenStr(token) + ": переопределение; множественная инициализация", (int)currentLine };
+                     PushError(err);
+                     return;
+                  }
+                  else if (tempCurrentRow == 75)
+                  {
+                     var->IsInitialised = true;
+                  }
+               }
+
+               if ( var->IsInitialised == false && tempCurrentRow == 44 )
+               {
+                  ParserError err = { GetRealTokenStr(token) + ": использование неинициализированной переменной", (int)currentLine };
+                  PushError(err);
+                  return;
+               }
+
+               if (tempCurrentRow == 75 && var->Type == None)
+               {
+                  ParserError err = { GetRealTokenStr(token) + ": использован необъявленный идентификатор", (int)currentLine };
+                  PushError(err);
+                  return;
+               }
+
                break;
 
             case StaticSeparators:
@@ -331,13 +379,14 @@ void Parser::Parse(vector<Token> tokens)
             case StaticOperators:
                if (tempCurrentRow == 35)
                {
-                  // Здесь надо бы добавление в таблицу констант и польский стек... 
+                  // НЕ РАБОТАЕТ
+                  // Здесь надо бы добавление в польский стек... 
                }
                break;
             }
 
             // --------------------------------
-            //  Работаем со стеком.
+            //  Работаем с польским стеком.
             // --------------------------------
             if (  token.tableID == DynamicConstants
                || token.tableID == DynamicVariables
@@ -353,15 +402,15 @@ void Parser::Parse(vector<Token> tokens)
                   polish.push_back(token);
                   break;
 
-               case StaticSeparators:
-                  while (outputBuf.top().tableID != 300)
-                  {
-                     polish.push_back(outputBuf.top());
-                     outputBuf.pop();
-                  }
+               //case StaticSeparators:
+               //   while (outputBuf.top().tableID != 300)
+               //   {
+               //      polish.push_back(outputBuf.top());
+               //      outputBuf.pop();
+               //   }
 
-                  polish.push_back(token);
-                  break;
+               //   polish.push_back(token);
+               //   break;
 
                case StaticBrackets:
                   if (token.rowID == 0)
@@ -384,7 +433,7 @@ void Parser::Parse(vector<Token> tokens)
                   size_t op = token.rowID;
                   Token last = outputBuf.top();
 
-                  if (last.tableID == 100) 
+                  if (last.tableID == 300) 
                      outputBuf.push(token);
                   else if (last.tableID == StaticOperators)
                      if (GetPriority(op) <= GetPriority(outputBuf.top().rowID))
@@ -412,7 +461,7 @@ void Parser::Parse(vector<Token> tokens)
 
    if (!st.empty())
    {
-      ParserError err = { "Стек парсера не пустой. Возможно, вы забыли '}'?", (int)currentLine };
+      ParserError err = { "требуется '}'", (int)currentLine };
       PushError(err);
       return;
    }

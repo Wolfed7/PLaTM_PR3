@@ -48,7 +48,7 @@ id	terminals	jump	accept	stack	return	error
 47	var const ( -	33	0	1	0	1
 48	)	49	1	0	0	1
 49	+ - * / == != < > ; , )	50	0	0	0	1
-50	+ - * / == != < > ; , )	52	0	0	0	0
+50	 ; , )	52	0	0	0	0
 51	+ - * / == != < >	53	0	0	0	1
 52	; , )	0	0	0	1	1
 53	+ - * / == != < >	55	0	1	0	1
@@ -70,7 +70,7 @@ id	terminals	jump	accept	stack	return	error
 69	>	0	1	0	1	1
 70	<	0	1	0	1	1
 71	var	73	0	1	0	1
-72	int var if }	16	0	0	1	1
+72	int var if }	16	0	0	0	1
 73	var	75	0	1	0	1
 74	;	0	1	0	1	1
 75	var	76	1	0	0	1
@@ -84,7 +84,7 @@ id	terminals	jump	accept	stack	return	error
 83	var	75	0	0	0	1
 84	,	87	0	0	0	0
 85	;	86	0	0	0	1
-86	;	0	1	0	1	1
+86	;	0	0	0	1	1
 87	,	88	1	0	0	1
 88	var	25	0	0	0	1
 89	if	91	0	1	0	1
@@ -104,4 +104,4 @@ id	terminals	jump	accept	stack	return	error
 103	int var if }	16	0	1	0	1
 104	}	0	1	0	1	1
 105	int var if }	0	0	0	1	1
-106	}	0	0	0	0	1
+106	}	0	0	0	1	1

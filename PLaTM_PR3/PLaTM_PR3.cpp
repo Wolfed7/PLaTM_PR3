@@ -105,8 +105,13 @@ int main()
    if (p_errors.size() > 0)
       return 1;
 
-   //for (auto token : polish)
-   //   cout << parser.getNiceTokenStr(token) << " ";
+   for (auto token : polish)
+      cout << parser.GetRealTokenStr(token) << " ";
+
+
+   // ******************************** //
+   //          Генератор кода.         //
+   // ******************************** //
 
    return 0;
 }
