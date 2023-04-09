@@ -17,7 +17,7 @@ ParseTable::ParseTable(string filename)
 
    getline(file, line);
 
-   // Заполняем табличку из файла, строка за строкой
+   // Заполняем табличку из файла построчно.
    while (getline(file, line))
    {
       stringstream lineStream(line);
@@ -77,27 +77,55 @@ void ParseTable::print()
 // ADDITIONAL FUNCTIONS
 // -----------------------------------------------------------
 
-int GetPriority(size_t op) 
+int GetTokenPriority(Token tok) 
 {
-   switch (op) 
+   switch (tok.tableID)
    {
-   case 0:
-   case 1:
-      return 5;
+      case StaticOperators:
+      {
+         switch (tok.rowID)
+         {
+            case 5:
+               return 1;
 
-   case 2:
-      return 4;
+            case 0:
+            case 4:
+            case 6:
+               return 6;
 
-   case 3:
-      return 12;
+            case 2:
+            case 3:
+               return 7;
 
-   case 4:
-   case 5:
-      return 8;
+            case 1:
+               return 8;
 
-   case 6:
-   case 7:
-      return 7;
+               break;
+         }
+      }
+
+      case StaticSeparators:
+      {
+         switch (tok.rowID)
+         {
+            case 0:
+            case 2:
+               return 1;
+         }
+      }
+
+      case StaticBrackets:
+      {
+         switch (tok.rowID)
+         {
+            case 0:
+               return 0;
+
+            case 1:
+               return 1;
+         }
+      }
+
    }
 
    return 199;
@@ -195,16 +223,16 @@ vector<Token> Parser::GetPolish()
 void Parser::Parse(vector<Token> tokens)
 {
    stack<size_t> st;
-   stack<Token> outputBuf;
+   stack<Token> workStack;
    size_t currentRow = 1;
    size_t currentTokenNumber = 0;
    size_t currentLine = 1;
    int tempTypeID = None;
    int declLine = 0;
    Variable *initVar = NULL;
+   Token *maybeOperand = NULL;
 
-
-   outputBuf.push({ 300, 300 });
+   workStack.push({ 300, 300 });
 
    st.push(0);
 
@@ -385,6 +413,16 @@ void Parser::Parse(vector<Token> tokens)
                break;
             }
 
+            if (tempCurrentRow == 25)
+            {
+               maybeOperand = &token;
+            }
+            else if (tempCurrentRow == 30)
+            {
+               polish.push_back(*maybeOperand);
+               maybeOperand = NULL;
+            }
+
             // --------------------------------
             //  Работаем с польским стеком.
             // --------------------------------
@@ -394,60 +432,116 @@ void Parser::Parse(vector<Token> tokens)
                || token.tableID == StaticOperators
                || (token.tableID == StaticBrackets && currentRow > 9 && (token.rowID == 0 || token.rowID == 1))) 
             {
+   
 
                switch (token.tableID)
                {
                case DynamicConstants:
-               case DynamicVariables:
                   polish.push_back(token);
                   break;
 
-               //case StaticSeparators:
-               //   while (outputBuf.top().tableID != 300)
-               //   {
-               //      polish.push_back(outputBuf.top());
-               //      outputBuf.pop();
-               //   }
+               case DynamicVariables:
+               {
+                  if (tempCurrentRow == 25)
+                  {
+                     break;
+                  }
+                  else
+                  {
+                     polish.push_back(token);
+                  }
+                  break;
+               }
 
-               //   polish.push_back(token);
-               //   break;
+
+               case StaticSeparators:
+                  while (workStack.top().tableID != 300)
+                  {
+                     polish.push_back(workStack.top());
+                     workStack.pop();
+                  }
+
+                  //polish.push_back(token); // Сам сепаратор.
+                  break;
 
                case StaticBrackets:
-                  if (token.rowID == 0)
+                  /* 
+                     Открывающая круглая скобка, имеющая «особый»
+                     приоритет нуль, просто записывается в вершину
+                     стека и не выталкивает ни одного знака.
+                  */
+                  if (GetTokenPriority(token) == 0)
                   {
-                     outputBuf.push(token);
+                     workStack.push(token);
                   }
-                  else if (token.rowID == 1)
+                  /*
+                     Появление закрывающей скобки вызывает выталкивание всех знаков до ближайшей открывающей скобки
+                     включительно. В стек закрывающая скобка не записывается. Открывающая и закрывающая скобки как бы
+                     взаимно уничтожаются и в выходную строку не переносятся.
+                  */
+                  else if (GetTokenPriority(token) == 1)
                   {
-                     while (!(outputBuf.top().tableID == StaticBrackets && outputBuf.top().rowID == 0))
+                     while (!(workStack.top().tableID != 300 && workStack.top().tableID == StaticBrackets && workStack.top().rowID == 0))
                      {
-                        polish.push_back(outputBuf.top());
-                        outputBuf.pop();
+                        polish.push_back(workStack.top());
+                        workStack.pop();
                      }
 
-                     outputBuf.pop();
+                     workStack.pop(); // Сама скобка '('
                   }
                   break;
 
-               case StaticOperators:
-                  size_t op = token.rowID;
-                  Token last = outputBuf.top();
 
-                  if (last.tableID == 300) 
-                     outputBuf.push(token);
-                  else if (last.tableID == StaticOperators)
-                     if (GetPriority(op) <= GetPriority(outputBuf.top().rowID))
+               case StaticOperators:
+                  Token last = workStack.top();
+
+                  //if (token.rowID == 4)
+                  //{ // Дебажный
+                  //   int a = 1;
+                  //}
+
+                  if (last.tableID == 300)
+                  {
+                     workStack.push(token);
+                  }
+                  else //if (last.tableID == StaticOperators)
+                  {
+                     /*
+                       Если приоритет входного знака равен нулю 
+                       или больше приоритета знака, находящегося в
+                       вершине стека, то новый знак добавляется
+                       к вершине стека.
+                     */
+                     if (GetTokenPriority(token) == 0 || GetTokenPriority(token) > GetTokenPriority(workStack.top()))
                      {
-                        outputBuf.push(token);
+                        workStack.push(token);
                      }
+                     /*
+                        В противном случае из стека «выталкивается» и переписывается
+                        в выходную строку знак, находящийся в вершине,
+                        а также следующие за ним знаки с приоритетами,
+                        большими или равными приоритету входного знака.
+                        После этого входной знак добавляется к вершине стека.
+                     */
                      else
                      {
-                        polish.push_back(last);
-                        outputBuf.pop();
-                        outputBuf.push(token);
+                        while 
+                           (
+                              workStack.top().tableID != 300
+                              && GetTokenPriority(token) <= GetTokenPriority(workStack.top())
+                           )
+                        {
+                           polish.push_back(workStack.top());
+                           workStack.pop();
+                        }
+                        workStack.push(token);
                      }
-                  else
-                     outputBuf.push(token);
+                  }
+                  // ?
+                  //else 
+                  //{
+                  //   workStack.push(token);
+                  //}
 
                   break;
                }
