@@ -6,9 +6,15 @@
 
 using namespace std;
 
-// -----------------------------------------------------------
-// PARSE TABLE
-// -----------------------------------------------------------
+const Token UPLtok = { DynamicLogic, 0 };
+const Token BPtok = { DynamicLogic, 1 };
+
+// Весь дальнейший код абсолютная халтура,
+// написанная под пару тестов. Чё - то да работает.
+
+// -------------------------------//
+//           Таблица разбора.     //
+// -------------------------------//
 
 ParseTable::ParseTable(string filename) 
 {
@@ -48,7 +54,6 @@ ParseTable::ParseTable(string filename)
 
 ParseTableRow &ParseTable::at(size_t idx)
 {
-   // TODO: Index out of array exception
    return data[idx - 1];
 }
 
@@ -72,10 +77,6 @@ void ParseTable::print()
       cout << row.error_ << endl;
    }
 }
-
-// -----------------------------------------------------------
-// ADDITIONAL FUNCTIONS
-// -----------------------------------------------------------
 
 int GetTokenPriority(Token tok) 
 {
@@ -131,9 +132,9 @@ int GetTokenPriority(Token tok)
    return 199;
 }
 
-// -----------------------------------------------------------
-// PARSER
-// -----------------------------------------------------------
+// ------------------------------------------------//
+//       Синтаксический анализатор (парсер)        //
+// ------------------------------------------------//
 
 Parser::Parser(ParseTable *table, Tables tables, vector<size_t> tokenLineIndeces)
 {
@@ -142,6 +143,7 @@ Parser::Parser(ParseTable *table, Tables tables, vector<size_t> tokenLineIndeces
    this->tokenLineIndeces = tokenLineIndeces;
 }
 
+// Достаёт име из токена. Абстрактные var и const для соответствующих таблиц, все остальные - реальные.
 string Parser::GetTokenStr(Token token)
 {
    string tokenStr;
@@ -180,33 +182,55 @@ string Parser::GetTokenStr(Token token)
    return tokenStr;
 }
 
+// Все имена из токенов реальные.
 string Parser::GetRealTokenStr(Token token)
 {
    string tokenStr;
 
    switch (token.tableID)
    {
-   case StaticBrackets:
-   case StaticSpecials:
-   case StaticOperators:
-   case StaticKeywords:
-   case StaticSeparators:
-      tokenStr = GetTokenStr(token);
-      break;
+      case StaticBrackets:
+      case StaticSpecials:
+      case StaticOperators:
+      case StaticKeywords:
+      case StaticSeparators:
+         tokenStr = GetTokenStr(token);
+         break;
 
-   case DynamicVariables:
-      tokenStr = tables.SearchOnDynamic(pair<int, int>({ DynamicVariables, token.rowID }))->Name;
-      break;
+      case DynamicVariables:
+         tokenStr = tables.SearchOnDynamic(pair<int, int>({ DynamicVariables, token.rowID }))->Name;
+         break;
 
-   case DynamicConstants:
-      tokenStr = tables.SearchOnDynamic(pair<int, int>({ DynamicConstants, token.rowID }))->Name;
-      break;
+      case DynamicConstants:
+         tokenStr = tables.SearchOnDynamic(pair<int, int>({ DynamicConstants, token.rowID }))->Name;
+         break;
+
+      case DynamicMark:
+         tokenStr = markTable[token.rowID];
+         break;
+
+      case DynamicMarkGo:
+         tokenStr = markTable[token.rowID] + ":";
+         break;
+
+      case DynamicLogic:
+      {
+         if (token.rowID == 0)
+         {
+            tokenStr = "UPL";
+         }
+         if (token.rowID == 1)
+         {
+            tokenStr = "BP";
+         }
+         break;
+      }
    }
 
    return tokenStr;
 }
 
-bool Parser::containsTerminal(vector<string> terminals, string terminal) 
+bool Parser::ContainsTerminal(vector<string> terminals, string terminal) 
 {
    for (auto &t : terminals)
       if (t.compare(terminal) == 0)
@@ -231,6 +255,10 @@ void Parser::Parse(vector<Token> tokens)
    int declLine = 0;
    Variable *initVar = NULL;
    Token *maybeOperand = NULL;
+   int markNum = 0;
+
+   stack<Token> ifmarks;
+   stack<Token> elsemarks;
 
    workStack.push({ 300, 300 });
 
@@ -267,7 +295,7 @@ void Parser::Parse(vector<Token> tokens)
             currentRow = st.top() + 1;
             st.pop();
          }
-         else if (row.jump_ != 0 && containsTerminal(row.terminals_, tokenStr))
+         else if (row.jump_ != 0 && ContainsTerminal(row.terminals_, tokenStr))
          {
             //cout << " . JUMP TO " << row.jump_ << endl;
             currentRow = row.jump_;
@@ -413,6 +441,9 @@ void Parser::Parse(vector<Token> tokens)
                break;
             }
 
+            // --------------------------------
+            //  Работаем с польским стеком.
+            // --------------------------------
             if (tempCurrentRow == 25)
             {
                maybeOperand = &token;
@@ -423,14 +454,56 @@ void Parser::Parse(vector<Token> tokens)
                maybeOperand = NULL;
             }
 
-            // --------------------------------
-            //  Работаем с польским стеком.
-            // --------------------------------
-            if (  token.tableID == DynamicConstants
+            // Попытка в условные выражения для польского стека.
+            // (вроде удачная (нет, метки ставятся не те), работает на святом духе как и всё здесь)
+            if (tempCurrentRow == 95)
+            {
+               markTable.push_back("m" + to_string(markNum));
+
+               Token mark; 
+               mark.tableID = DynamicMark;
+               mark.rowID = markNum;
+               polish.push_back(mark);
+               polish.push_back(UPLtok);
+               markNum++;
+
+               ifmarks.push(mark);
+            }
+            if (tempCurrentRow == 97)
+            {
+               ifmarks.top().tableID = DynamicMarkGo;
+               polish.push_back(ifmarks.top());
+               ifmarks.pop();
+            }
+            if (tempCurrentRow == 101)
+            {
+               markTable.push_back("m" + to_string(markNum));
+               Token mark;
+               mark.tableID = DynamicMark;
+               mark.rowID = markNum;
+               Token lastMark = polish.back();
+               polish[polish.size() - 1] = mark;
+               polish.push_back(BPtok);
+               polish.push_back(lastMark);
+               markNum++;
+
+               elsemarks.push(mark);
+            }
+            if (tempCurrentRow == 104)
+            {
+               elsemarks.top().tableID = DynamicMarkGo;
+               polish.push_back(elsemarks.top());
+               elsemarks.pop();
+            }
+
+            if 
+               (  
+                  token.tableID == DynamicConstants
                || token.tableID == DynamicVariables
                || token.tableID == StaticSeparators
                || token.tableID == StaticOperators
-               || (token.tableID == StaticBrackets && currentRow > 9 && (token.rowID == 0 || token.rowID == 1))) 
+               || (token.tableID == StaticBrackets && currentRow > 9 && (token.rowID == 0 || token.rowID == 1))
+               ) 
             {
    
 

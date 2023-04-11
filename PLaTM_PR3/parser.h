@@ -48,14 +48,16 @@ class Parser
    vector<Token> polish;
 
 private:
-   bool containsTerminal(vector<string> terminals, string terminal);
+   bool ContainsTerminal(vector<string> terminals, string terminal);
    void PushError(ParserError error);
 
 public:
-   Parser(ParseTable *table, Tables tables, vector<size_t> tokenLineIndeces);
+   // Комментарии можно поискать в parser.cpp
+   Parser(ParseTable *table, Tables tables, vector<size_t> tokenLineIndexes);
    void Parse(vector<Token> tokens);
    string GetTokenStr(Token);
    string GetRealTokenStr(Token);
+   vector<string> markTable;
    vector<ParserError> GetErrors();
    vector<Token> GetPolish();
 };

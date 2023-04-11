@@ -15,6 +15,10 @@ enum TableType
    StaticSpecials,
    DynamicVariables,
    DynamicConstants,
+
+   DynamicLogic = 8,
+   DynamicMark = 10,
+   DynamicMarkGo = 11
 };
 
 class Tables

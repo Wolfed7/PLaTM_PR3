@@ -23,12 +23,16 @@ void main()
    if (a < b)
    {
       c = b - a;
+      if (a == 1)
+      {
+         c = a + b;
+      }
    }
    else
    {
       if (a == 1)
       {
-         c = a + b;
+         c = a - b;
       }
 
       a = 5;
